@@ -1,20 +1,22 @@
-package com.quiz.model.dto.post;
+package com.quiz.model.dto.question;
+
+import lombok.Data;
 
 import java.io.Serializable;
 import java.util.List;
-import lombok.Data;
-
-/*
-  对数据进行封装的请求类
- */
 
 /**
- * 创建请求
+ * 编辑题目请求
  *
  * @author shengjie fan
  */
 @Data
-public class PostAddRequest implements Serializable {
+public class QuestionEditRequest implements Serializable {
+
+    /**
+     * id
+     */
+    private Long id;
 
     /**
      * 标题
@@ -30,6 +32,11 @@ public class PostAddRequest implements Serializable {
      * 标签列表
      */
     private List<String> tags;
+
+    /**
+     * 推荐答案
+     */
+    private String answer;
 
     private static final long serialVersionUID = 1L;
 }
