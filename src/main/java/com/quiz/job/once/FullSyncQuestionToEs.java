@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 全量同步题目到 es
+ * 全量同步题目到 es，只需要在项目启动时执行一次，余下的情况可以只执行增量同步
  *
  */
 @Component
