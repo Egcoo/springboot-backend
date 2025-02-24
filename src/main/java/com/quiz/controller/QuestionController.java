@@ -10,10 +10,7 @@ import com.quiz.common.ResultUtils;
 import com.quiz.constant.UserConstant;
 import com.quiz.exception.BusinessException;
 import com.quiz.exception.ThrowUtils;
-import com.quiz.model.dto.question.QuestionAddRequest;
-import com.quiz.model.dto.question.QuestionEditRequest;
-import com.quiz.model.dto.question.QuestionQueryRequest;
-import com.quiz.model.dto.question.QuestionUpdateRequest;
+import com.quiz.model.dto.question.*;
 import com.quiz.model.entity.Question;
 import com.quiz.model.entity.User;
 import com.quiz.model.vo.QuestionVO;
@@ -259,5 +256,13 @@ public class QuestionController {
         ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
         Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+    }
+
+    @PostMapping("/delete/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchDeleteQuestions(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest) {
+        ThrowUtils.throwIf(questionBatchDeleteRequest == null, ErrorCode.PARAMS_ERROR);
+        questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
+        return ResultUtils.success(true);
     }
 }
