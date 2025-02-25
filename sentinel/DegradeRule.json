@@ -1,0 +1,12 @@
+[
+  {
+    "count": 0.01,
+    "grade": 1,
+    "limitApp": "default",
+    "minRequestAmount": 1,
+    "resource": "/question/list/page/vo/sentinel",
+    "slowRatioThreshold": 1.0,
+    "statIntervalMs": 10000,
+    "timeWindow": 20
+  }
+]
