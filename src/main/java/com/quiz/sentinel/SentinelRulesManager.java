@@ -40,9 +40,12 @@ public class SentinelRulesManager {
     public void initFlowRules() {
         // 单 IP 查看题目列表限流规则
         ParamFlowRule rule = new ParamFlowRule(SentinelConstant.listQuestionVOByPage)
-                .setParamIdx(0) // 对第 0 个参数限流，即 IP 地址
-                .setCount(20) // 每分钟最多 60 次
-                .setDurationInSec(60); // 规则的统计周期为 60 秒
+                // 对第 0 个参数限流，即 IP 地址
+                .setParamIdx(0)
+                // 每分钟最多 60 次
+                .setCount(20)
+                // 规则的统计周期为 60 秒
+                .setDurationInSec(60);
         ParamFlowRuleManager.loadRules(Collections.singletonList(rule));
     }
 
@@ -53,18 +56,27 @@ public class SentinelRulesManager {
         // 单 IP 查看题目列表熔断规则
         DegradeRule slowCallRule = new DegradeRule(SentinelConstant.listQuestionVOByPage)
                 .setGrade(CircuitBreakerStrategy.SLOW_REQUEST_RATIO.getType())
-                .setCount(0.2) // 慢调用比例大于 20%
-                .setTimeWindow(20) // 熔断持续时间 60 秒
-                .setStatIntervalMs(30 * 1000) // 统计时长 30 秒
-                .setMinRequestAmount(5) // 最小请求数
-                .setSlowRatioThreshold(3); // 响应时间超过 3 秒
+                // 慢调用比例大于 20%
+                .setCount(0.2)
+                // 熔断持续时间 60 秒
+                .setTimeWindow(20)
+                // 统计时长 30 秒
+                .setStatIntervalMs(30 * 1000)
+                // 最小请求数
+                .setMinRequestAmount(5)
+                // 响应时间超过 3 秒
+                .setSlowRatioThreshold(3);
 
         DegradeRule errorRateRule = new DegradeRule(SentinelConstant.listQuestionVOByPage)
                 .setGrade(CircuitBreakerStrategy.ERROR_RATIO.getType())
-                .setCount(0.1) // 异常率大于 10%
-                .setTimeWindow(20) // 熔断持续时间 60 秒
-                .setStatIntervalMs(30 * 1000) // 统计时长 30 秒
-                .setMinRequestAmount(10); // 最小请求数
+                // 异常率大于 10%
+                .setCount(0.1)
+                // 熔断持续时间 20 秒
+                .setTimeWindow(20)
+                // 统计时长 30 秒
+                .setStatIntervalMs(30 * 1000)
+                // 最小请求数
+                .setMinRequestAmount(10);
 
         // 加载规则
         DegradeRuleManager.loadRules(Arrays.asList(slowCallRule, errorRateRule));
