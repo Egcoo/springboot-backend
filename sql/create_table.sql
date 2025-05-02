@@ -79,3 +79,5 @@ ALTER TABLE user
     ADD grade VARCHAR(50) COMMENT '年级',
     ADD workExperience VARCHAR(512) COMMENT '工作经验',
     ADD expertiseDirection VARCHAR(512) COMMENT '擅长方向';
+
+SELECT VERSION();

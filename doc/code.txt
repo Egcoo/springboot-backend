@@ -1,0 +1,164 @@
+/**
+* 分页获取用户列表（仅管理员）
+* 
+* @param userQueryRequest
+* @param request
+* @return
+*/
+函数 listUserByPage(userQueryRequest, request):
+    当前页码 = userQueryRequest.getCurrent()
+    每页大小 = userQueryRequest.getPageSize()
+    创建分页对象 = Page(current, size)
+    创建查询包装器 = getQueryWrapper(userQueryRequest)
+    用户分页结果 = userService.page(分页对象, 查询包装器)
+    返回成功响应，包含用户分页结果
+
+// 生成查询条件包装器
+函数 getQueryWrapper(userQueryRequest):
+    如果 userQueryRequest 为空:
+        抛出异常，提示参数错误
+    id = userQueryRequest.getId()
+    unionId = userQueryRequest.getUnionId()
+    mpOpenId = userQueryRequest.getMpOpenId()
+    userName = userQueryRequest.getUserName()
+    userProfile = userQueryRequest.getUserProfile()
+    userRole = userQueryRequest.getUserRole()
+    sortField = userQueryRequest.getSortField()
+    sortOrder = userQueryRequest.getSortOrder()
+    创建查询包装器 = QueryWrapper<User>()
+    如果 id 不为空:
+        添加条件：id = id
+    如果 unionId 不为空:
+        添加条件：unionId = unionId
+    如果 mpOpenId 不为空:
+        添加条件：mpOpenId = mpOpenId
+    如果 userRole 不为空:
+        添加条件：userRole = userRole
+    如果 userProfile 不为空:
+        添加模糊查询条件：userProfile LIKE userProfile
+    如果 userName 不为空:
+        添加模糊查询条件：userName LIKE userName
+    如果 sortField 有效:
+        如果排序方式为升序:
+            按 sortField 升序排序
+        否则:
+            按 sortField 降序排序
+    返回查询包装器
+
+
+/**
+* 添加用户签到记录
+*
+* @param request
+* @return 当前是否已签到成功
+*/
+函数 addUserSignIn(request):
+    // 必须登录才能签到
+    登录用户 = userService.getLoginUser(request)
+    结果 = userService.addUserSignIn(登录用户.getId())
+    返回成功响应，包含结果
+
+// 添加用户签到记录
+函数 addUserSignIn(userId):
+    当前日期 = LocalDate.now()
+    Redis键 = RedisConstant.getUserSignInRedisKey(当前日期.getYear(), userId)
+
+    // 获取 Redis 的 BitMap
+    签到BitMap = redissonClient.getBitSet(Redis键)
+
+    // 获取当前日期是一年中的第几天，作为偏移量（从 1 开始计数）
+    偏移量 = 当前日期.getDayOfYear()
+
+    // 查询当天是否已签到
+    如果 签到BitMap.get(偏移量) 未签到:
+        设置签到状态为已签到
+        签到BitMap.set(偏移量, true)
+
+    // 返回签到成功
+    返回 true
+
+// 获取用户签到记录
+函数 getUserSignInRecord(year, request):
+    // 必须登录才能获取
+    登录用户 = userService.getLoginUser(request)
+    用户签到记录 = userService.getUserSignInRecord(登录用户.getId(), year)
+    返回成功响应，包含用户签到记录
+
+// 获取用户某个年份的签到记录
+函数 getUserSignInRecord(userId, year):
+    如果 year 为空:
+        当前日期 = LocalDate.now()
+        year = 当前日期.getYear()
+    Redis键 = RedisConstant.getUserSignInRedisKey(year, userId)
+
+    // 获取 Redis 的 BitMap
+    签到BitMap = redissonClient.getBitSet(Redis键)
+
+    // 加载 BitSet 到内存中，避免后续读取时发送多次请求
+    bitSet = 签到BitMap.asBitSet()
+
+    // 统计签到的日期
+    签到日期列表 = 新的空列表
+
+    // 从索引 0 开始查找下一个被设置为 1 的位
+    当前索引 = bitSet.nextSetBit(0)
+
+    当 前索引 >= 0:
+        添加当前索引到签到日期列表
+        查找下一个被设置为 1 的位
+        当前索引 = bitSet.nextSetBit(当前索引 + 1)
+
+    返回签到日期列表
+
+// 执行任务
+函数 run(args):
+    // 全量获取题目（数据量不大的情况下使用）
+    问题列表 = questionService.list()
+
+    如果 问题列表为空:
+        返回
+
+    // 转为 ES 实体类
+    ES问题列表 = 将问题列表映射为 ES 实体类列表
+
+    // 分页批量插入到 ES
+    每页大小 = 500
+    总数 = ES问题列表的大小
+    记录日志: "FullSyncQuestionToEs start, total {}", 总数
+
+    对于 i 从 0 到 总数，每次增加 每页大小:
+        // 注意同步的数据下标不能超过总数据量
+        结束索引 = min(i + 每页大小, 总数)
+        记录日志: "sync from {} to {}", i, 结束索引
+        当前分页数据 = ES问题列表的子列表，从 i 到 结束索引
+        questionEsDao.saveAll(当前分页数据)
+
+    记录日志: "FullSyncQuestionToEs end, total {}", 总数
+
+
+
+// 批量添加题目到题库（仅管理员可用）
+函数 batchAddQuestionsToBank(questionBankQuestionBatchAddRequest, request):
+    如果 questionBankQuestionBatchAddRequest 为空:
+        抛出异常，提示参数错误
+
+    登录用户 = userService.getLoginUser(request)
+    题库ID = questionBankQuestionBatchAddRequest.getQuestionBankId()
+    题目ID列表 = questionBankQuestionBatchAddRequest.getQuestionIdList()
+
+    调用 questionBankQuestionService.batchAddQuestionsToBank(题目ID列表, 题库ID, 登录用户)
+    返回成功响应，包含 true
+
+// 批量从题库移除题目（仅管理员可用）
+函数 batchRemoveQuestionsFromBank(questionBankQuestionBatchRemoveRequest, request):
+    如果 questionBankQuestionBatchRemoveRequest 为空:
+        抛出异常，提示参数错误
+
+    题库ID = questionBankQuestionBatchRemoveRequest.getQuestionBankId()
+    题目ID列表 = questionBankQuestionBatchRemoveRequest.getQuestionIdList()
+
+    调用 questionBankQuestionService.batchRemoveQuestionsFromBank(题目ID列表, 题库ID)
+
+    返回成功响应，包含 true
+
+
