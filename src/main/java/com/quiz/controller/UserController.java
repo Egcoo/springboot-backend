@@ -87,7 +87,8 @@ public class UserController {
      * @return
      */
     @PostMapping("/login")
-    public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
+    public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest userLoginRequest,
+                                               HttpServletRequest request) {
         if (userLoginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -97,6 +98,8 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         LoginUserVO loginUserVO = userService.userLogin(userAccount, userPassword, request);
+        request.getSession().setAttribute("userId", loginUserVO.getId());
+        System.err.println(request.getSession().getAttribute("userId"));
         return ResultUtils.success(loginUserVO);
     }
 
@@ -146,7 +149,7 @@ public class UserController {
      */
     @GetMapping("/get/login")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
-        User user = userService.getLoginUser(request);
+            User user = userService.getLoginUser(request);
         return ResultUtils.success(userService.getLoginUserVO(user));
     }
 
@@ -224,7 +227,8 @@ public class UserController {
      * @return 是否成功
      */
     @PostMapping("/edit")
-    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest, HttpServletRequest request) {
+    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest,
+                                          HttpServletRequest request) {
         if (userEditRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }

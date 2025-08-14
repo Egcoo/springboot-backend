@@ -191,3 +191,6 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.quiz.controller
+# AI 大模型接入（目前是火山引擎 DeepSeek）
+ai:
+  apiKey: 5e970179-3b70-429c-9fe5-1fa3d2b5068

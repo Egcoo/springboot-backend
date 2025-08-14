@@ -9,7 +9,7 @@
         <version>2.7.2</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.yupi</groupId>
+    <groupId>com.quiz</groupId>
     <artifactId>springboot-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>springboot-backend</name>
@@ -62,6 +62,12 @@
             <groupId>org.redisson</groupId>
             <artifactId>redisson</artifactId>
             <version>3.21.0</version>
+        </dependency>
+        <!--https://www.volcengine.com/experience/ark-->
+        <dependency>
+            <groupId>com.volcengine</groupId>
+            <artifactId>volcengine-java-sdk-ark-runtime</artifactId>
+            <version>0.2.6</version>
         </dependency>
 
         <dependency>

@@ -1,6 +1,10 @@
 package com.quiz.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.annotation.SaIgnore;
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.csp.sentinel.Entry;
 import com.alibaba.csp.sentinel.EntryType;
@@ -8,6 +12,8 @@ import com.alibaba.csp.sentinel.SphU;
 import com.alibaba.csp.sentinel.Tracer;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.quiz.annotation.AuthCheck;
 import com.quiz.common.BaseResponse;
@@ -17,6 +23,7 @@ import com.quiz.common.ResultUtils;
 import com.quiz.constant.UserConstant;
 import com.quiz.exception.BusinessException;
 import com.quiz.exception.ThrowUtils;
+import com.quiz.mapper.QuestionMapper;
 import com.quiz.model.dto.question.*;
 import com.quiz.model.entity.Question;
 import com.quiz.model.entity.User;
@@ -24,13 +31,19 @@ import com.quiz.model.vo.QuestionVO;
 import com.quiz.sentinel.SentinelConstant;
 import com.quiz.service.QuestionService;
 import com.quiz.service.UserService;
+import com.quiz.utils.CollaborativeFilteringTool;
+import com.quiz.utils.SimpleRateLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static com.quiz.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 题目接口
@@ -46,6 +59,8 @@ public class QuestionController {
 
     @Resource
     private UserService userService;
+
+
 
     // region 增删改查
 
@@ -184,12 +199,144 @@ public class QuestionController {
                                                                HttpServletRequest request) {
         ThrowUtils.throwIf(questionQueryRequest == null, ErrorCode.PARAMS_ERROR);
         long size = questionQueryRequest.getPageSize();
+        User loginUserPermitNull = userService.getLoginUserPermitNull(request);
+
+        System.err.println(":" + loginUserPermitNull);
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
+
+        Page<QuestionVO> questionVOPage = questionService.getQuestionVOPage(questionPage, request);
         // 获取封装类
-        return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+        return ResultUtils.success(questionVOPage);
+    }
+
+    private static final SimpleRateLimiter rateLimiter = new SimpleRateLimiter(1, 1000); // 最多5个请求/秒
+
+    @Autowired
+    QuestionMapper questionMapper;
+    @GetMapping("/recommend")
+//    @SaIgnore
+    public BaseResponse<List<QuestionVO>> recommend(
+                                                    HttpServletRequest request) {
+//        Object o = StpUtil.getSession().get(USER_LOGIN_STATE);
+        if (!rateLimiter.tryAcquire()) {
+//            return ResultUtils.success(new ArrayList<>()); // HTTP 429 Too Many Requests
+        }
+
+        Object o1 = request.getSession().getAttribute(USER_LOGIN_STATE);
+        // 获取所有题目
+        List<Question> questionList = questionService.list();
+
+
+
+        if (o1 != null) {
+            User loginUser = (User)o1;
+//            final User loginUser = userService.getLoginUser(request);
+            // 创建工具类实例
+            CollaborativeFilteringTool cfTool = new CollaborativeFilteringTool();
+            Map<String, Long> userTagMap = new HashMap<>();
+            for (Question question : questionList) {
+                String tags = question.getTags();
+                Long userId = question.getUserId();
+                if (StringUtils.isNotBlank(tags)) {
+                    String[] split = tags.split(",");
+                    for (String tag : split) {
+                        String replace = tag.replace("[", "");
+                        tag = replace.replace("]", "");
+                        // 添加到用户标签映射中
+                        if (!userTagMap.containsKey(tag)) {
+                            userTagMap.put(tag, userId);
+                            cfTool.addUserItem(userId, userTagMap.get(tag));
+                        } else {
+                            // 生成一个随机数
+                            long l = System.currentTimeMillis();
+                            userTagMap.put(tag, l);
+                            cfTool.addUserItem(userId, l);
+                        }
+
+                    }
+                }
+
+            }
+
+//            for (Question question : questionList) {
+//                cfTool.addUserItem(question.getUserId(), question.getId());
+//            }
+
+            // 为用户1生成推荐
+            long targetUserId = loginUser.getId();
+            int topN = 8;
+
+            // 获取相似用户及其相似度
+            Map<Long, Double> similarUsers = cfTool.getSimilarUsersWithSimilarity(targetUserId, topN);
+            System.out.println("相似用户及其相似度: " + similarUsers);
+
+            // 生成推荐及其推荐分数
+            Map<Long, Double> recommendations = cfTool.recommendItemsWithScores(targetUserId, topN);
+            Set<Long> integers = recommendations.keySet();
+            System.out.println("为用户" + targetUserId + "推荐的物品: " + integers);
+            System.out.println("为用户" + targetUserId + "推荐的物品及其推荐分数:");
+            //System.out.println("为未登录用户推荐的物品: " + integers);
+            //System.out.println("为未登录用户推荐的物品及其推荐分数:");
+            //System.out.println("物品 1 的推荐分数: 0.764902803707298");
+            //System.out.println("物品 2 的推荐分数: 0.596706306468475");
+            //System.out.println("物品 5 的推荐分数: 0.395930401834572");
+            for (Map.Entry<Long, Double> entry : recommendations.entrySet()) {
+                System.out.println("物品 " + entry.getKey() + " 的推荐分数: " + entry.getValue());
+            }
+
+
+            // 清空数据
+            cfTool.clearData();
+            System.out.println("数据已清空，当前用户-物品数据: " + cfTool.getUserItemMap());
+
+            List<String> tags = new ArrayList<>();
+            if (integers.size() > 0) {
+                System.out.println("推荐成功");
+                for (String s : userTagMap.keySet()) {
+                    if (integers.contains(userTagMap.get(s))) {
+                        tags.add(s);
+                    }
+                }
+
+                if (tags.size() > 0) {
+                    System.out.println("为用户" + targetUserId + "推荐的分类: " + tags);
+                    List<String> conditions = tags.stream()
+                            .map(tag -> "JSON_CONTAINS(tags, '" + tag + "')")
+                            .collect(Collectors.toList());
+                    QueryWrapper<Question> queryWrapper = new QueryWrapper<>();
+                    queryWrapper.apply( String.join(" OR ", conditions) );
+                    List<Question> questions = questionService.list(queryWrapper);
+                    List<QuestionVO> questionVOList = questions.stream().map(question -> {
+                        return QuestionVO.objToVo(question);
+                    }).collect(Collectors.toList());
+                    return ResultUtils.success(questionVOList);
+                } else {
+                    Collections.shuffle(questionList);
+                    List<Question> questions = questionList.size() > 8 ? questionList.subList(0, 8) : questionList;
+                    List<QuestionVO> questionVOList = questions.stream().map(question -> {
+                        return QuestionVO.objToVo(question);
+                    }).collect(Collectors.toList());
+                    return ResultUtils.success(questionVOList);
+                }
+            } else {
+                Collections.shuffle(questionList);
+                List<Question> questions = questionList.size() > 8 ? questionList.subList(0, 8) : questionList;
+                List<QuestionVO> questionVOList = questions.stream().map(question -> {
+                    return QuestionVO.objToVo(question);
+                }).collect(Collectors.toList());
+                return ResultUtils.success(questionVOList);
+            }
+        } else {
+            Collections.shuffle(questionList);
+            List<Question> questions = questionList.size() > 8 ? questionList.subList(0, 8) : questionList;
+            List<QuestionVO> questionVOList = questions.stream().map(question -> {
+                return QuestionVO.objToVo(question);
+            }).collect(Collectors.toList());
+            return ResultUtils.success(questionVOList);
+        }
     }
 
     /**
@@ -323,6 +470,29 @@ public class QuestionController {
     public BaseResponse<Boolean> batchDeleteQuestions(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest) {
         ThrowUtils.throwIf(questionBatchDeleteRequest == null, ErrorCode.PARAMS_ERROR);
         questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * AI 生成题目（仅管理员可用）
+     *
+     * @param questionAIGenerateRequest 请求参数
+     * @param request HTTP 请求
+     * @return 是否生成成功
+     */
+    @PostMapping("/ai/generate/question")
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> aiGenerateQuestions(@RequestBody QuestionAIGenerateRequest questionAIGenerateRequest, HttpServletRequest request) {
+        String questionType = questionAIGenerateRequest.getQuestionType();
+        int number = questionAIGenerateRequest.getNumber();
+        // 校验参数
+        ThrowUtils.throwIf(StrUtil.isBlank(questionType), ErrorCode.PARAMS_ERROR, "题目类型不能为空");
+        ThrowUtils.throwIf(number <= 0, ErrorCode.PARAMS_ERROR, "题目数量必须大于 0");
+        // 获取当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        // 调用 AI 生成题目服务
+        questionService.aiGenerateQuestions(questionType, number, loginUser);
+        // 返回结果
         return ResultUtils.success(true);
     }
 }

@@ -125,7 +125,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
         // 3. 记录用户的登录态
-        //request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);Codeium: Your IDE and extension versions are too old. Update your IDE to 2022.3+ and install the latest extension. For help, contact us at https://codeium.com/support
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
+//        Codeium: Your IDE and extension versions are too old. USER_LOGIN_STATEpdate your IDE to 2022.3+ and install the latest extension. For help, contact us at https://codeium.com/support
         // Sa-Token 登录，并指定设备，同端登录互斥
         StpUtil.login(user.getId(), DeviceUtils.getRequestDevice(request));
         StpUtil.getSession().set(USER_LOGIN_STATE, user);

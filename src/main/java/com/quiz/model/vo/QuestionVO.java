@@ -94,4 +94,8 @@ public class QuestionVO implements Serializable {
         questionVO.setTagList(JSONUtil.toList(question.getTags(), String.class));
         return questionVO;
     }
+
+    public String  getTags() {
+        return null;
+    }
 }
